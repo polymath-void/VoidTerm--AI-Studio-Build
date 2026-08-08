@@ -116,6 +116,16 @@ flowchart TD
 
 > **Protocol Reminder**: All modifications, architectural milestones, and test runs MUST be logged here using the strict categorization schema defined in `AGENTS.md`.
 
+- **2026-08-08 19:00 UTC** `[BUILD_ENV]` **Created Dedicated GitHub Actions Workflow (`build-apk.yml`) for Automated Android Builds**
+  - **Details**: Authored `.github/workflows/build-apk.yml` with separate `build-rust-broker` and `build-apk` jobs, cross-compiling Rust binaries (`guest_daemon`, `libhybrid_term_broker.so`) for `aarch64-linux-android` with caching and uploading debug APK artifacts.
+  - **Impacted Components**: `.github/workflows/build-apk.yml`.
+  - **Outcome / Status**: Created & Active.
+
+- **2026-08-08 18:55 UTC** `[AVF_GUEST]` **Implemented Sparse 1024MB ext4 Disk Image Pre-Allocation & Custom Image Config Injection**
+  - **Details**: Added `allocateSparseDiskImage()` helper using `RandomAccessFile` and `FileChannel.truncate()` to pre-allocate a sparse 1024MB `disk.img` block device file with zero physical write penalty. Reflectively hooked `VirtualMachineCustomImageConfig` builder into `VirtualMachineConfig.Builder` to attach block devices on Android 14+ (API 34+).
+  - **Impacted Components**: `android/app/src/main/kotlin/com/hybridengine/terminal/AvfVmProvisioner.kt`.
+  - **Outcome / Status**: Verified & Integrated.
+
 - **2026-08-08 18:15 UTC** `[TERMINAL_UI]` **Integrated Dynamic Theme Switcher, Session Clipper, & Hoverable Line Copy Buttons**
   - **Details**: Built reactive multi-theme variables switcher ('Monochrome', 'Solarized', and 'Retro Amber') dynamically re-indexing terminal CSS variables, ANSI escape maps, and text backgrounds. Added individual hoverable copy-to-clipboard actions and full-session text extraction blocks to the virtual emulator canvas.
   - **Impacted Components**: `src/App.tsx`.
