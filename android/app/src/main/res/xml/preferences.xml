@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="Appearance">
+
+        <ListPreference
+            app:defaultValue="default"
+            app:entries="@array/theme_entries"
+            app:entryValues="@array/theme_values"
+            app:key="theme"
+            app:title="Terminal Theme"
+            app:summary="%s" />
+
+        <EditTextPreference
+            app:defaultValue="16"
+            app:key="font_size"
+            app:title="Font Size (sp)"
+            app:summary="Configure terminal font size"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Cursor Settings">
+
+        <ListPreference
+            app:defaultValue="block"
+            app:entries="@array/cursor_entries"
+            app:entryValues="@array/cursor_values"
+            app:key="cursor_style"
+            app:title="Cursor Style"
+            app:summary="%s" />
+
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="cursor_blink"
+            app:title="Cursor Blinking"
+            app:summary="Enable cursor blinking transition effect" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

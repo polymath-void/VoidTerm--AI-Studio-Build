@@ -9,9 +9,63 @@ import java.io.RandomAccessFile
 
 class AvfVmProvisioner(private val context: Context) {
 
+    private var activeVirtualMachine: Any? = null
+    private var vsockFd: Int = -1
+
+    fun getVsockFd(): Int = vsockFd
+
+    fun stopVm() {
+        val vm = activeVirtualMachine ?: return
+        try {
+            Log.i("VoidTerm", "Stopping Guest VM...")
+            try {
+                val closeMethod = vm.javaClass.getMethod("close")
+                closeMethod.invoke(vm)
+                Log.i("VoidTerm", "Guest VM closed via reflectively calling close().")
+            } catch (e: Exception) {
+                try {
+                    val stopMethod = vm.javaClass.getMethod("stop")
+                    stopMethod.invoke(vm)
+                    Log.i("VoidTerm", "Guest VM closed via reflectively calling stop().")
+                } catch (ex: Exception) {
+                    Log.w("VoidTerm", "Could not find close or stop methods on VM: ${ex.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("VoidTerm", "Failed to stop VM reflectively: ${e.message}")
+        } finally {
+            activeVirtualMachine = null
+            vsockFd = -1
+        }
+    }
+
+    fun connectVsockNow(port: Int = 8000): Int {
+        val vm = activeVirtualMachine ?: return -1
+        try {
+            val methods = vm.javaClass.methods
+            var connectMethod: java.lang.reflect.Method? = null
+            for (m in methods) {
+                if (m.name == "connectToVsockServer" || m.name == "connectVsock") {
+                    if (m.parameterTypes.size == 1 && (m.parameterTypes[0] == Int::class.java || m.parameterTypes[0] == java.lang.Integer::class.java)) {
+                        connectMethod = m
+                        break
+                    }
+                }
+            }
+            if (connectMethod != null) {
+                val pfdObj = connectMethod.invoke(vm, port) ?: return -1
+                val detachFdMethod = pfdObj.javaClass.getMethod("detachFd")
+                return detachFdMethod.invoke(pfdObj) as Int
+            }
+        } catch (e: Exception) {
+            Log.e("VoidTerm", "Failed to connect to vsock on port $port: ${e.message}")
+        }
+        return -1
+    }
+
     /**
      * Pre-allocates a sparse disk image file of specified size (default 1024 MB).
-     * Attempts zero-copy stream allocation via RandomAccessFile and falls back to dd if=/dev/zero.
+     * Uses dd command to create the 1024MB image file, falling back to RandomAccessFile stream.
      */
     fun allocateSparseDisk(file: File, sizeMb: Long = 1024L): File {
         if (!file.parentFile.exists()) {
@@ -21,20 +75,10 @@ class AvfVmProvisioner(private val context: Context) {
 
         try {
             if (!file.exists() || file.length() != targetSizeBytes) {
-                Log.i("VoidTerm", "Allocating ${sizeMb}MB sparse disk image at ${file.absolutePath}...")
+                Log.i("VoidTerm", "Allocating ${sizeMb}MB sparse disk image via dd at ${file.absolutePath}...")
 
-                // Method 1: Direct File Stream zero-copy sparse allocation
                 try {
-                    RandomAccessFile(file, "rw").use { raf ->
-                        raf.setLength(targetSizeBytes)
-                    }
-                    FileOutputStream(file, true).use { fos ->
-                        fos.channel.truncate(targetSizeBytes)
-                    }
-                    Log.i("VoidTerm", "Sparse disk allocated via Direct File Stream. Size: ${file.length()} bytes")
-                } catch (e: Exception) {
-                    Log.w("VoidTerm", "Direct stream allocation failed, falling back to dd command: ${e.message}")
-                    // Method 2: ProcessBuilder shell 'dd' allocation fallback
+                    // Method 1: ProcessBuilder shell 'dd' allocation
                     val process = ProcessBuilder(
                         "dd",
                         "if=/dev/zero",
@@ -44,7 +88,20 @@ class AvfVmProvisioner(private val context: Context) {
                         "seek=$sizeMb"
                     ).redirectErrorStream(true).start()
                     val exitCode = process.waitFor()
-                    Log.i("VoidTerm", "dd process finished with exit code: $exitCode, size: ${file.length()} bytes")
+                    Log.i("VoidTerm", "dd process completed with exit code: $exitCode, size: ${file.length()} bytes")
+                } catch (e: Exception) {
+                    Log.w("VoidTerm", "dd command failed, falling back to direct stream allocation: ${e.message}")
+                }
+
+                // Fallback / Verification: Zero-copy stream allocation via RandomAccessFile
+                if (!file.exists() || file.length() != targetSizeBytes) {
+                    RandomAccessFile(file, "rw").use { raf ->
+                        raf.setLength(targetSizeBytes)
+                    }
+                    FileOutputStream(file, true).use { fos ->
+                        fos.channel.truncate(targetSizeBytes)
+                    }
+                    Log.i("VoidTerm", "Sparse disk allocated via RandomAccessFile fallback. Size: ${file.length()} bytes")
                 }
             } else {
                 Log.i("VoidTerm", "Disk image existing and valid (${sizeMb}MB). Skipping allocation.")
@@ -175,7 +232,24 @@ class AvfVmProvisioner(private val context: Context) {
                         val runMethod = virtualMachine.javaClass.getMethod("run")
                         runMethod.invoke(virtualMachine)
 
-                        Log.i("VoidTerm", "AVF Guest VM 'voidterm_guest_vm' successfully booted via VirtualizationManager.")
+                        activeVirtualMachine = virtualMachine
+                        Log.i("VoidTerm", "AVF Guest VM 'voidterm_guest_vm' successfully booted via VirtualizationManager. Awaiting guest daemon boot...")
+                        
+                        var connectedFd = -1
+                        for (attempt in 1..10) {
+                            try {
+                                connectedFd = connectVsockNow(8000)
+                                if (connectedFd != -1) {
+                                    Log.i("VoidTerm", "Guest daemon is ready on attempt $attempt!")
+                                    break
+                                }
+                            } catch (e: Exception) {
+                                Log.w("VoidTerm", "Connection attempt $attempt failed: ${e.message}")
+                            }
+                            Thread.sleep(500)
+                        }
+                        this.vsockFd = connectedFd
+
                         onComplete(true)
                     } catch (e: Exception) {
                         Log.w("VoidTerm", "System API VirtualMachineConfig allocation failed, attempting native fallback shell spawn...", e)

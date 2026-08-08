@@ -16,7 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 class MainActivity : AppCompatActivity() {
 
     private lateinit var terminalSurface: TerminalSurfaceView
-    private lateinit var broker: Broker
+    private var broker: Broker? = null
     private lateinit var commandInput: EditText
     private lateinit var btnSend: Button
 
@@ -29,20 +29,24 @@ class MainActivity : AppCompatActivity() {
         commandInput = findViewById(R.id.command_input)
         btnSend = findViewById(R.id.btn_send)
 
-        // 2. Provision AVF MicroVM asynchronously, then start JNI Broker
-        terminalSurface.appendOutput("\u001b[36m⚡ System: Booting AVF MicroVM sandbox...\u001b[0m")
-        val vmProvisioner = AvfVmProvisioner(this)
-        vmProvisioner.bootVmAsync { success ->
-            runOnUiThread {
-                if (success) {
-                    terminalSurface.appendOutput("\u001b[32m✅ System: Guest Linux VM is online (CID 3).\u001b[0m")
-                } else {
-                    terminalSurface.appendOutput("\u001b[33m⚠️ System: AVF hypervisor unavailable. Standing up host shell.\u001b[0m")
-                }
-                broker = Broker(terminalSurface)
-                broker.start()
+        // 2. Start/Connect to Foreground Service
+        terminalSurface.appendOutput("\u001b[36m⚡ System: Initializing background services...\u001b[0m")
+        val serviceIntent = Intent(this, TerminalService::class.java)
+        if (!TerminalService.isRunning) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
             }
         }
+
+        TerminalService.onStatusChanged = {
+            runOnUiThread {
+                syncServiceState()
+            }
+        }
+
+        syncServiceState()
 
         // 3. Request Storage Permissions safely
         try {
@@ -56,6 +60,12 @@ class MainActivity : AppCompatActivity() {
             dispatchCommand()
         }
 
+        val fabSettings = findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.fab_settings)
+        fabSettings.setOnClickListener {
+            val intent = Intent(this, SettingsActivity::class.java)
+            startActivity(intent)
+        }
+
         commandInput.setOnEditorActionListener { _, actionId, event ->
             if (actionId == EditorInfo.IME_ACTION_SEND || 
                 (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
@@ -65,6 +75,33 @@ class MainActivity : AppCompatActivity() {
                 false
             }
         }
+    }
+
+    private fun syncServiceState() {
+        val currentBroker = TerminalService.broker
+        if (currentBroker != null) {
+            this.broker = currentBroker
+            Broker.activeView = terminalSurface
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::terminalSurface.isInitialized) {
+            terminalSurface.updateConfig()
+        }
+        syncServiceState()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Broker.activeView = null
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        TerminalService.onStatusChanged = null
+        Broker.activeView = null
     }
 
     private fun requestStoragePermissions() {
@@ -93,9 +130,10 @@ class MainActivity : AppCompatActivity() {
             // Echo the command to the screen visually
             terminalSurface.appendOutput("\n\u001b[35muser@voidterm:~$\u001b[0m $command")
             
-            if (::broker.isInitialized) {
+            val currentBroker = broker
+            if (currentBroker != null) {
                 // Push the command down through the broker
-                broker.send(command)
+                currentBroker.send(command)
             } else {
                 terminalSurface.appendOutput("\u001b[33m⚠️ System: Hypervisor is currently provisioning. Please wait.\u001b[0m")
             }

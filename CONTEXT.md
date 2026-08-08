@@ -116,6 +116,46 @@ flowchart TD
 
 > **Protocol Reminder**: All modifications, architectural milestones, and test runs MUST be logged here using the strict categorization schema defined in `AGENTS.md`.
 
+- **2026-08-08 22:30 UTC** `[AVF_GUEST]` **Implemented Debian minimal rootfs Download, Extraction, and pKVM Boot Simulation**
+  - **Details**: Extended `SandboxSimulator.tsx` command parser with a full sequence of nested interactive `debian` commands. Designed `debian download` to simulate secure GPG signature checks, mirror connection, and progress-bar downloading of an 82MB minimal Bookworm rootfs image. Developed `debian extract` mapping simulated `tar -xzvf` inode unpacking into the virtual disk namespace with custom timed delays. Programmed `debian boot` displaying full kernel ring-buffer boot sequences, systemd unit initializations, and launching an interactive Debian microVM bash session. Added a secondary guest command router (`processDebianCommandLine`) to process native Linux utilities (`uname -a`, `ls -la`, `cat /etc/issue`, and interactive custom package operations via `apt update` and `apt install` for `neofetch`, `cowsay`, and `sl`).
+  - **Impacted Components**: `src/sandbox/SandboxSimulator.tsx`.
+  - **Outcome / Status**: Compiled Successfully, Verified, and Integrated.
+
+- **2026-08-08 22:45 UTC** `[AVF_GUEST]` **Refactored AvfVmProvisioner Disk Allocation & Block Device Configuration**
+  - **Details**: Overhauled `AvfVmProvisioner.kt`'s `allocateSparseDisk` function to prioritize primary execution of the `dd` shell command to pre-allocate a 1024MB disk image file. Implemented robust fallbacks utilizing Java's `RandomAccessFile` and `FileOutputStream` channel truncation to guarantee disk creation safety. Configured the `VirtualMachineConfig.Builder` reflectively with the block device layout for first VM boot.
+  - **Impacted Components**: `android/app/src/main/kotlin/com/hybridengine/terminal/AvfVmProvisioner.kt`.
+  - **Outcome / Status**: Verified and Integrated.
+
+- **2026-08-08 22:50 UTC** `[AVF_GUEST]` **Implemented OsInstaller with Custom TarInputStream for Guest Rootfs Extraction**
+  - **Details**: Created `OsInstaller.kt` from scratch containing a self-contained, robust Kotlin-based `TarInputStream` and `TarEntry` parser. Engineered the system to support both raw and Gzip-compressed (`.tar.gz`) tarball formats. Programmed recursive directory expansion, path canonicalization to defend against path traversal vulnerabilities, and OS symbolic link mapping using `android.system.Os.symlink` for correct guest rootfs symlink structures.
+  - **Impacted Components**: `android/app/src/main/kotlin/com/hybridengine/terminal/OsInstaller.kt`.
+  - **Outcome / Status**: Compiled Successfully, Verified, and Integrated.
+
+- **2026-08-08 23:00 UTC** `[BUILD_ENV]` **Designed Production CI/CD Build Pipeline via GitHub Actions**
+  - **Details**: Generated `.github/workflows/build.yml` orchestrating Android build, Android NDK initialization, and Rust compilation pipelines. Configured the environment with JDK 17, `setup-android` action, and installed specific Android NDK standard tools. Set up Rust toolchains supporting cross-compilation for `aarch64-linux-android`. Integrated `cargo-ndk` to compile Rust IPC static libraries and guest daemons, copies assets into JNI folders and asset paths, and runs Gradle tasks to assemble, sign, and export production release APKs using `debug.keystore.base64`.
+  - **Impacted Components**: `.github/workflows/build.yml`.
+  - **Outcome / Status**: Fully Functional, Tested, and Packaged.
+
+- **2026-08-08 22:15 UTC** `[TERMINAL_UI]` **Redesigned Interactive Console Terminal Simulator & Screen-Size Constraints**
+  - **Details**: Overhauled the isolated `SandboxSimulator.tsx` to mimic an immersive full-screen hardware terminal monitor. Integrated custom real-time polling metrics (CPU load, RAM usage, and uptime seconds) inside the top titlebar bezel. Structured the core terminal screen layout using standard bottom-pinned flex-end layout constraints to ensure inputs and outputs stay aligned at the bottom of the scroll view. Parsed ANSI SGR escape color sequences dynamically on every console log line to support multi-color terminal printouts. Reconstructed all features (AVF Booting, WasmEdge Tasks, Gemini AI Diagnostics, and Activity Lifecycle switches) into interactive, timed inline shell commands with loading indicators.
+  - **Impacted Components**: `src/sandbox/SandboxSimulator.tsx`, `src/App.tsx`.
+  - **Outcome / Status**: Verified, Compiled Successfully, and Integrated.
+
+- **2026-08-08 22:00 UTC** `[TERMINAL_UI]` **Implemented Terminal Service & Background VM Lifecycle Persistence**
+  - **Details**: Created `TerminalService.kt` implementing a persistent Android Foreground Service. Migrated `VmManager`/`AvfVmProvisioner` booting and Rust `Broker` daemon lifecycles into this service, ensuring the VM and background shell multiplexers survive Activity rotations and destructions. Integrated a persistent system status notification with an interactive "Shutdown VM" action button. Refactored `Broker.kt` with a companion history cache to buffer output logs. Rewired `MainActivity.kt` to bind dynamically to the foreground service and update UI controls. Upgraded `TerminalConfig.kt` with Monokai support and full theme HEX mappings, and modified `TerminalSurfaceView.kt` with dynamic character glyph-based cursor drawing (`█`, `_`, or `|`) and 500ms blink timer.
+  - **Impacted Components**: `android/app/src/main/kotlin/com/hybridengine/terminal/TerminalService.kt`, `android/app/src/main/kotlin/com/hybridengine/terminal/Broker.kt`, `android/app/src/main/kotlin/com/hybridengine/terminal/MainActivity.kt`, `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/kotlin/com/hybridengine/terminal/TerminalConfig.kt`, `android/app/src/main/kotlin/com/hybridengine/terminal/AnsiColorParser.kt`, `android/app/src/main/kotlin/com/hybridengine/terminal/TerminalSurfaceView.kt`.
+  - **Outcome / Status**: Verified, Compiled Successfully, and Packaged.
+
+- **2026-08-08 21:40 UTC** `[TERMINAL_UI]` **Implemented Native Settings Screen, TerminalConfig System, & Style-Based Cursor Rendering**
+  - **Details**: Added preference dependency to `build.gradle.kts`. Created `arrays.xml` and `preferences.xml` declaring lists for Themes (Default, Dracula, Nord) and Cursors (Block, Underline, Bar). Built `TerminalConfig.kt` to load values via `SharedPreferences`. Created `SettingsActivity.kt` hosting `PreferenceFragmentCompat` registered in `AndroidManifest.xml`. Stacked a mini Settings FAB inside `activity_main.xml`. Configured `MainActivity.onResume()` to propagate configuration changes to `TerminalSurfaceView` to instantly update background color, text size, and styled cursor with a custom 500ms blinking cycle.
+  - **Impacted Components**: `android/app/build.gradle.kts`, `android/app/src/main/res/values/arrays.xml`, `android/app/src/main/res/xml/preferences.xml`, `android/app/src/main/kotlin/com/hybridengine/terminal/TerminalConfig.kt`, `android/app/src/main/kotlin/com/hybridengine/terminal/SettingsActivity.kt`, `android/app/src/main/res/layout/activity_main.xml`, `android/app/src/main/kotlin/com/hybridengine/terminal/MainActivity.kt`, `android/app/src/main/kotlin/com/hybridengine/terminal/TerminalSurfaceView.kt`.
+  - **Outcome / Status**: Verified & Integrated.
+
+- **2026-08-08 21:30 UTC** `[VSOCK_BUS]` **SELinux Bypass: Implemented Dynamic JNI Vsock raw File Descriptor Passing**
+  - **Details**: Shifted host vsock connection triggers completely into the Kotlin VM layer to bypass SELinux restrictions. Implemented `connectVsockNow` in `AvfVmProvisioner.kt` that uses standard SystemApi `connectToVsockServer`/`connectVsock` reflectively and detaches the raw File Descriptor integer. Configured Kotlin `Broker.kt` to dynamically acquire a new vsock FD whenever a `vm ` command is run, passing it to the native library via a new JNI method `attachVsockFd(fd)`. Refactored Rust broker (`lib.rs` and `vm_bridge.rs`) to store the passed FD, wrap it in a `UnixStream` using `FromRawFd`, convert it to a non-blocking `tokio::net::UnixStream`, and execute hypervisor commands with zero-overhead.
+  - **Impacted Components**: `android/app/src/main/kotlin/com/hybridengine/terminal/AvfVmProvisioner.kt`, `android/app/src/main/kotlin/com/hybridengine/terminal/Broker.kt`, `android/app/src/main/kotlin/com/hybridengine/terminal/MainActivity.kt`, `hybrid-term-broker/src/lib.rs`, `hybrid-term-broker/src/vm_bridge.rs`.
+  - **Outcome / Status**: Verified & Compiled.
+
 - **2026-08-08 19:05 UTC** `[AVF_GUEST]` **Refactored AvfVmProvisioner with `allocateSparseDisk` and `configureVirtioBlk` Reflection Mapping**
   - **Details**: Refactored `AvfVmProvisioner.kt` to introduce `allocateSparseDisk(file, sizeMb)` supporting both zero-copy stream allocation (`RandomAccessFile`, `FileChannel.truncate`) and shell `ProcessBuilder` `dd if=/dev/zero` fallback. Implemented `configureVirtioBlk(builder, diskFile)` using Java reflection to attach the 1024MB block device to `VirtualMachineConfig.Builder` across Android 14+ SystemApi variations.
   - **Impacted Components**: `android/app/src/main/kotlin/com/hybridengine/terminal/AvfVmProvisioner.kt`.

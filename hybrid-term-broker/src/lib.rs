@@ -187,3 +187,13 @@ fn send_to_kotlin(text: String) {
         }
     }
 }
+
+#[no_mangle]
+pub extern "system" fn Java_com_hybridengine_terminal_Broker_attachVsockFd(
+    _env: JNIEnv,
+    _class: JClass,
+    raw_fd: jni::sys::jint,
+) {
+    println!("🔌 [JNI] Attaching vsock file descriptor: {}", raw_fd);
+    vm_bridge::VmBridge::set_attached_fd(raw_fd as i32);
+}

@@ -99,10 +99,26 @@ class TerminalSurfaceView @JvmOverloads constructor(
         color = Color.parseColor("#0A0A0A") // Deep true black
     }
 
+    private var blinkState = true
+    private var lastBlinkTime = 0L
+
     init {
         holder.addCallback(this)
         // Initialize first line
         linesBuffer.add(TerminalLine())
+        updateConfig()
+    }
+
+    fun updateConfig() {
+        try {
+            TerminalConfig.load(context)
+            val density = resources.displayMetrics.density
+            textPaint.textSize = TerminalConfig.fontSizeSp * density
+            backgroundPaint.color = TerminalConfig.getBackgroundColor()
+            activeColor = TerminalConfig.getTextColor()
+        } catch (e: Exception) {
+            Log.e("VoidTerm", "Failed to load terminal config: ${e.message}")
+        }
     }
 
     // Safely append and parse streaming terminal output (ANSI SGR codes, \b, \r)
@@ -268,7 +284,7 @@ class TerminalSurfaceView @JvmOverloads constructor(
     }
 
     private fun drawTerminal(canvas: Canvas) {
-        // Draw deep, immersive true-black canvas
+        // Draw background canvas
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), backgroundPaint)
 
         synchronized(this) {
@@ -288,8 +304,43 @@ class TerminalSurfaceView @JvmOverloads constructor(
                     canvas.drawText(span.text, xOffset, yOffset, textPaint)
                     xOffset += textPaint.measureText(span.text)
                 }
+
+                // Draw terminal cursor on the latest line
+                if (i == linesBuffer.size - 1) {
+                    drawCursor(canvas, yOffset, textSize)
+                }
+
                 yOffset -= (textSize + 10f)
             }
         }
+    }
+
+    private fun drawCursor(canvas: Canvas, yOffset: Float, textSize: Float) {
+        if (TerminalConfig.cursorBlink) {
+            val now = System.currentTimeMillis()
+            if (now - lastBlinkTime > 500) {
+                blinkState = !blinkState
+                lastBlinkTime = now
+            }
+            if (!blinkState) return
+        }
+
+        val cursorPaint = Paint().apply {
+            color = TerminalConfig.getTextColor()
+            this.textSize = textPaint.textSize
+            this.typeface = textPaint.typeface
+        }
+
+        // Measure space width as character width
+        val charWidth = textPaint.measureText(" ")
+        val cursorLeft = 20f + (cursorCol * charWidth)
+
+        val cursorChar = when (TerminalConfig.cursorStyle) {
+            "underline" -> "_"
+            "bar" -> "|"
+            else -> "█"
+        }
+
+        canvas.drawText(cursorChar, cursorLeft, yOffset, cursorPaint)
     }
 }
