@@ -11,38 +11,106 @@ class AvfVmProvisioner(private val context: Context) {
 
     /**
      * Pre-allocates a sparse disk image file of specified size (default 1024 MB).
-     * Uses RandomAccessFile length positioning to ensure zero physical write penalty on ext4 storage.
+     * Attempts zero-copy stream allocation via RandomAccessFile and falls back to dd if=/dev/zero.
      */
-    fun allocateSparseDiskImage(outputFile: File, sizeMb: Long = 1024L): File {
-        if (!outputFile.parentFile.exists()) {
-            outputFile.parentFile.mkdirs()
+    fun allocateSparseDisk(file: File, sizeMb: Long = 1024L): File {
+        if (!file.parentFile.exists()) {
+            file.parentFile.mkdirs()
         }
-        
         val targetSizeBytes = sizeMb * 1024L * 1024L
-        
+
         try {
-            if (!outputFile.exists() || outputFile.length() != targetSizeBytes) {
-                Log.i("VoidTerm", "Allocating sparse ${sizeMb}MB disk image at ${outputFile.absolutePath}...")
-                
-                // Method 1: Instant zero-copy sparse file allocation via RandomAccessFile
-                RandomAccessFile(outputFile, "rw").use { raf ->
-                    raf.setLength(targetSizeBytes)
-                }
+            if (!file.exists() || file.length() != targetSizeBytes) {
+                Log.i("VoidTerm", "Allocating ${sizeMb}MB sparse disk image at ${file.absolutePath}...")
 
-                // Fallback check if filesystem strictly requires channel truncation
-                FileOutputStream(outputFile, true).use { fos ->
-                    fos.channel.truncate(targetSizeBytes)
+                // Method 1: Direct File Stream zero-copy sparse allocation
+                try {
+                    RandomAccessFile(file, "rw").use { raf ->
+                        raf.setLength(targetSizeBytes)
+                    }
+                    FileOutputStream(file, true).use { fos ->
+                        fos.channel.truncate(targetSizeBytes)
+                    }
+                    Log.i("VoidTerm", "Sparse disk allocated via Direct File Stream. Size: ${file.length()} bytes")
+                } catch (e: Exception) {
+                    Log.w("VoidTerm", "Direct stream allocation failed, falling back to dd command: ${e.message}")
+                    // Method 2: ProcessBuilder shell 'dd' allocation fallback
+                    val process = ProcessBuilder(
+                        "dd",
+                        "if=/dev/zero",
+                        "of=${file.absolutePath}",
+                        "bs=1M",
+                        "count=0",
+                        "seek=$sizeMb"
+                    ).redirectErrorStream(true).start()
+                    val exitCode = process.waitFor()
+                    Log.i("VoidTerm", "dd process finished with exit code: $exitCode, size: ${file.length()} bytes")
                 }
-
-                Log.i("VoidTerm", "Sparse disk image allocated successfully. Size: ${outputFile.length()} bytes")
             } else {
-                Log.i("VoidTerm", "Existing disk image found with matching size (${sizeMb}MB). Skipping allocation.")
+                Log.i("VoidTerm", "Disk image existing and valid (${sizeMb}MB). Skipping allocation.")
             }
         } catch (e: Exception) {
-            Log.e("VoidTerm", "Failed to allocate sparse disk image: ${e.message}", e)
+            Log.e("VoidTerm", "Failed to allocate disk image: ${e.message}", e)
         }
-        
-        return outputFile
+        return file
+    }
+
+    /**
+     * Alias for allocateSparseDisk to maintain backward compatibility.
+     */
+    fun allocateSparseDiskImage(outputFile: File, sizeMb: Long = 1024L): File {
+        return allocateSparseDisk(outputFile, sizeMb)
+    }
+
+    /**
+     * Maps the disk image into the VirtualMachineConfig.Builder using reflection for SystemApi access.
+     */
+    fun configureVirtioBlk(builder: Any, diskFile: File) {
+        try {
+            val configClass = builder.javaClass
+            
+            // Try standard CustomImageConfig builder if present on API 34+
+            try {
+                val customImageConfigClass = Class.forName("android.system.virtualmachine.VirtualMachineCustomImageConfig\$Builder")
+                val customBuilder = customImageConfigClass.getConstructor().newInstance()
+                
+                val setDiskPathMethod = customImageConfigClass.getMethod("setPath", String::class.java)
+                setDiskPathMethod.invoke(customBuilder, diskFile.absolutePath)
+                
+                val buildCustomImageMethod = customImageConfigClass.getMethod("build")
+                val customImageConfig = buildCustomImageMethod.invoke(customBuilder)
+                
+                val setCustomImageConfigMethod = configClass.getMethod("setCustomImageConfig", customImageConfigClass.superclass ?: Any::class.java)
+                setCustomImageConfigMethod.invoke(builder, customImageConfig)
+                Log.i("VoidTerm", "Successfully attached virtio-blk disk (${diskFile.name}) via CustomImageConfig reflection")
+                return
+            } catch (e: Exception) {
+                Log.d("VoidTerm", "CustomImageConfig reflection not available, attempting direct builder disk mapping: ${e.message}")
+            }
+
+            // Fallback: Try direct addDisk / setDiskPath methods on VirtualMachineConfig.Builder
+            val methods = configClass.methods
+            for (method in methods) {
+                if (method.name == "addDisk" || method.name == "setDiskPath" || method.name == "setVendorImage") {
+                    try {
+                        if (method.parameterTypes.size == 1 && method.parameterTypes[0] == String::class.java) {
+                            method.invoke(builder, diskFile.absolutePath)
+                            Log.i("VoidTerm", "Successfully attached virtio-blk disk via ${method.name}(String)")
+                            return
+                        } else if (method.parameterTypes.size == 1 && method.parameterTypes[0] == File::class.java) {
+                            method.invoke(builder, diskFile)
+                            Log.i("VoidTerm", "Successfully attached virtio-blk disk via ${method.name}(File)")
+                            return
+                        }
+                    } catch (e: Exception) {
+                        Log.w("VoidTerm", "Invocation of ${method.name} failed: ${e.message}")
+                    }
+                }
+            }
+            Log.i("VoidTerm", "VirtioBlk configuration completed via reflective probe.")
+        } catch (e: Exception) {
+            Log.e("VoidTerm", "configureVirtioBlk reflection failure: ${e.message}", e)
+        }
     }
 
     /**
@@ -79,7 +147,7 @@ class AvfVmProvisioner(private val context: Context) {
                     val rootfsFile = File(vmDir, "rootfs.img").apply { if (!exists()) writeBytes(ByteArray(4096)) }
                     
                     // Priority 1: Allocate a 1024MB sparse ext4 block device image file
-                    val diskImgFile = allocateSparseDiskImage(File(vmDir, "disk.img"), 1024L)
+                    val diskImgFile = allocateSparseDisk(File(vmDir, "disk.img"), 1024L)
 
                     try {
                         val configClass = Class.forName("android.system.virtualmachine.VirtualMachineConfig\$Builder")
@@ -95,23 +163,8 @@ class AvfVmProvisioner(private val context: Context) {
                         val setMemoryBytesMethod = configClass.getMethod("setMemoryBytes", Long::class.java)
                         setMemoryBytesMethod.invoke(builder, 512 * 1024 * 1024L) // 512 MB allocation
 
-                        // Reflectively inject block device (disk.img) into VirtualMachineConfig builder if custom image config API is present
-                        try {
-                            val customImageConfigClass = Class.forName("android.system.virtualmachine.VirtualMachineCustomImageConfig\$Builder")
-                            val customBuilder = customImageConfigClass.getConstructor().newInstance()
-                            
-                            val setDiskPathMethod = customImageConfigClass.getMethod("setPath", String::class.java)
-                            setDiskPathMethod.invoke(customBuilder, diskImgFile.absolutePath)
-                            
-                            val buildCustomImageMethod = customImageConfigClass.getMethod("build")
-                            val customImageConfig = buildCustomImageMethod.invoke(customBuilder)
-                            
-                            val setCustomImageConfigMethod = configClass.getMethod("setCustomImageConfig", customImageConfigClass.superclass ?: Any::class.java)
-                            setCustomImageConfigMethod.invoke(builder, customImageConfig)
-                            Log.i("VoidTerm", "Reflectively attached 1024MB sparse block device (${diskImgFile.name}) to VirtualMachineConfig")
-                        } catch (e: Exception) {
-                            Log.i("VoidTerm", "Custom image disk config reflection skipped/not available on this Android build: ${e.message}")
-                        }
+                        // Reflectively inject block device (disk.img) into VirtualMachineConfig builder
+                        configureVirtioBlk(builder, diskImgFile)
 
                         val buildMethod = configClass.getMethod("build")
                         val vmConfig = buildMethod.invoke(builder)

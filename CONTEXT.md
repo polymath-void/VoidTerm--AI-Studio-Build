@@ -116,6 +116,11 @@ flowchart TD
 
 > **Protocol Reminder**: All modifications, architectural milestones, and test runs MUST be logged here using the strict categorization schema defined in `AGENTS.md`.
 
+- **2026-08-08 19:05 UTC** `[AVF_GUEST]` **Refactored AvfVmProvisioner with `allocateSparseDisk` and `configureVirtioBlk` Reflection Mapping**
+  - **Details**: Refactored `AvfVmProvisioner.kt` to introduce `allocateSparseDisk(file, sizeMb)` supporting both zero-copy stream allocation (`RandomAccessFile`, `FileChannel.truncate`) and shell `ProcessBuilder` `dd if=/dev/zero` fallback. Implemented `configureVirtioBlk(builder, diskFile)` using Java reflection to attach the 1024MB block device to `VirtualMachineConfig.Builder` across Android 14+ SystemApi variations.
+  - **Impacted Components**: `android/app/src/main/kotlin/com/hybridengine/terminal/AvfVmProvisioner.kt`.
+  - **Outcome / Status**: Verified & Compiled.
+
 - **2026-08-08 19:00 UTC** `[BUILD_ENV]` **Created Dedicated GitHub Actions Workflow (`build-apk.yml`) for Automated Android Builds**
   - **Details**: Authored `.github/workflows/build-apk.yml` with separate `build-rust-broker` and `build-apk` jobs, cross-compiling Rust binaries (`guest_daemon`, `libhybrid_term_broker.so`) for `aarch64-linux-android` with caching and uploading debug APK artifacts.
   - **Impacted Components**: `.github/workflows/build-apk.yml`.
