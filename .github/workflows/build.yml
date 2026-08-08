@@ -78,8 +78,7 @@ jobs:
 
       - name: Build Release APK
         run: |
-          chmod +x gradlew || true
-          cd android
+          chmod +x ./gradlew || true
           ./gradlew assembleRelease --stacktrace
 
       - name: Sign Release APK
