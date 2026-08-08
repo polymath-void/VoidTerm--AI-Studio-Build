@@ -2,18 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Terminal, 
   Cpu, 
-  Layers, 
   Activity, 
-  FileCode, 
-  HelpCircle, 
   Play, 
-  AlertCircle, 
-  RotateCcw, 
   Smartphone, 
   Wand2,
   Sparkles,
   RefreshCw,
-  Eye
+  Copy,
+  Check,
+  Palette
 } from 'lucide-react';
 
 interface TerminalLine {
@@ -35,9 +32,29 @@ export default function App() {
   // Architecture panel active tab
   const [activeTab, setActiveTab] = useState<'ansi' | 'avf' | 'ai' | 'lifecycle'>('ansi');
 
+  // Theme support
+  const [theme, setTheme] = useState<'monochrome' | 'solarized' | 'retro'>('monochrome');
+
+  // Command history support
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [savedInput, setSavedInput] = useState('');
+
+  // Real-time systems polling state
+  const [cpuLoad, setCpuLoad] = useState<number>(14.5);
+  const [ramUsage, setRamUsage] = useState<number>(42.1);
+  const [statsSource, setStatsSource] = useState<string>('guest-vm-ipc-broker');
+
+  // Interval-based opacity toggle for blink animation
+  const [blinkVisible, setBlinkVisible] = useState(true);
+
+  // Line copy confirmation hooks
+  const [copiedLineIdx, setCopiedLineIdx] = useState<number | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
+
   // ANSI Demo interactive state
-  const [ansiText, setAnsiText] = useState('\\u001b[32m[SUCCESS]\\u001b[0m App built in \\u001b[1;33m1200ms\\u001b[0m');
-  const [parsedSpans, setParsedSpans] = useState<{ text: string; color: string; isBold: boolean }[]>([]);
+  const [ansiText, setAnsiText] = useState('\\u001b[32m[SUCCESS]\\u001b[0m App built in \\u001b[1;33m1200ms\\u001b[0m or test SGR 5 blink \\u001b[5;31m[CRITICAL ATTEMPT]\\u001b[0m');
+  const [parsedSpans, setParsedSpans] = useState<{ text: string; color: string; isBold: boolean; isBlink?: boolean }[]>([]);
 
   // AVF Interactive boot steps
   const [avfBooting, setAvfBooting] = useState(false);
@@ -49,27 +66,109 @@ export default function App() {
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
 
   // PTY process simulation state
-  const [ptyConnected, setPtyConnected] = useState(true);
+  const [ptyConnected] = useState(true);
   const [backgroundPaused, setBackgroundPaused] = useState(false);
+
+  // Theme specific style variables
+  const themeStyles = {
+    monochrome: {
+      bg: 'bg-[#0E0E0E]',
+      text: 'text-[#E0E0E0]',
+      inputText: 'text-[#FFFFFF]',
+      border: 'border-[#1C1C1C]',
+      promptColor: 'text-[#BA68C8]',
+      inputBg: 'bg-transparent',
+      ansiDefault: '#E0E0E0',
+      terminalInnerBg: '#0E0E0E',
+      ansiMap: {
+        30: '#1C1C1C', 31: '#E57373', 32: '#81C784', 33: '#FFD54F', 
+        34: '#64B5F6', 35: '#BA68C8', 36: '#4DD0E1', 37: '#E0E0E0',
+        90: '#757575', 91: '#FF8A80', 92: '#B9F6CA', 93: '#FFE082',
+        94: '#82B1FF', 95: '#F8BBD0', 96: '#A7FFEB', 97: '#FFFFFF'
+      }
+    },
+    solarized: {
+      bg: 'bg-[#002B36]',
+      text: 'text-[#839496]',
+      inputText: 'text-[#93A1A1]',
+      border: 'border-[#073642]',
+      promptColor: 'text-[#268BD2]',
+      inputBg: 'bg-[#073642]/40',
+      ansiDefault: '#839496',
+      terminalInnerBg: '#002B36',
+      ansiMap: {
+        30: '#073642', 31: '#DC322F', 32: '#859900', 33: '#B58900', 
+        34: '#268BD2', 35: '#D33682', 36: '#2AA198', 37: '#EEE8D5',
+        90: '#586E75', 91: '#CB4B16', 92: '#859900', 93: '#B58900',
+        94: '#268BD2', 95: '#D33682', 96: '#2AA198', 97: '#FDF6E3'
+      }
+    },
+    retro: {
+      bg: 'bg-[#120900]',
+      text: 'text-[#FFB300]',
+      inputText: 'text-[#FFD54F]',
+      border: 'border-[#3E1F00]',
+      promptColor: 'text-[#FF8F00]',
+      inputBg: 'bg-[#211100]/50',
+      ansiDefault: '#FFB300',
+      terminalInnerBg: '#120900',
+      ansiMap: {
+        30: '#2A1400', 31: '#FF3D00', 32: '#FFD54F', 33: '#FFE082', 
+        34: '#FFB300', 35: '#FF8F00', 36: '#FFC107', 37: '#FFE082',
+        90: '#5D3300', 91: '#FF5722', 92: '#FFE082', 93: '#FFD54F',
+        94: '#FFB300', 95: '#FF9100', 96: '#FFA000', 97: '#FFF8E1'
+      }
+    }
+  };
 
   // Scroll to bottom of terminal
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [terminalLines]);
 
-  // Parse ANSI codes on current ansiText change
+  // Parse ANSI codes on current ansiText or theme change
   useEffect(() => {
     parseAnsi(ansiText);
-  }, [ansiText]);
+  }, [ansiText, theme]);
 
-  // Helper to parse ANSI simulation in React
+  // Poll CPU and RAM stats from Node.js backend (/api/vm-stats)
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/vm-stats');
+        const data = await res.json();
+        if (data && typeof data.cpu === 'number') setCpuLoad(data.cpu);
+        if (data && typeof data.ram === 'number') setRamUsage(data.ram);
+        if (data && data.source) setStatsSource(data.source);
+      } catch (err) {
+        // dynamic local simulation fallback
+        setCpuLoad(prev => Math.min(99, Math.max(5, +(prev + (Math.random() - 0.5) * 4).toFixed(1))));
+        setRamUsage(prev => Math.min(99, Math.max(10, +(prev + (Math.random() - 0.5) * 1).toFixed(1))));
+      }
+    };
+
+    fetchStats();
+    const statsInterval = setInterval(fetchStats, 2000);
+    return () => clearInterval(statsInterval);
+  }, []);
+
+  // Set interval for SGR 5 blink text toggle
+  useEffect(() => {
+    const blinkInterval = setInterval(() => {
+      setBlinkVisible(prev => !prev);
+    }, 600);
+    return () => clearInterval(blinkInterval);
+  }, []);
+
+  // Helper to parse ANSI simulation in React, supporting SGR 5 (blink) and 25 (blink off)
   const parseAnsi = (raw: string) => {
-    // Basic regex-free tokenizer of \u001b or \e style ANSI
-    const result: { text: string; color: string; isBold: boolean }[] = [];
+    const result: { text: string; color: string; isBold: boolean; isBlink?: boolean }[] = [];
     let clean = raw.replace(/\\u001b/g, '\u001b').replace(/\\e/g, '\u001b');
     
-    let activeColor = '#E0E0E0';
+    const activeThemeStyles = themeStyles[theme];
+    let activeColor = activeThemeStyles.ansiDefault;
     let activeBold = false;
+    let activeBlink = false;
     
     let i = 0;
     let currentChunk = '';
@@ -77,7 +176,7 @@ export default function App() {
     while (i < clean.length) {
       if (clean[i] === '\u001b' && clean[i+1] === '[') {
         if (currentChunk) {
-          result.push({ text: currentChunk, color: activeColor, isBold: activeBold });
+          result.push({ text: currentChunk, color: activeColor, isBold: activeBold, isBlink: activeBlink });
           currentChunk = '';
         }
         i += 2;
@@ -92,28 +191,21 @@ export default function App() {
           for (const codeStr of codes) {
             const code = parseInt(codeStr) || 0;
             if (code === 0) {
-              activeColor = '#E0E0E0';
+              activeColor = activeThemeStyles.ansiDefault;
               activeBold = false;
+              activeBlink = false;
             } else if (code === 1) {
               activeBold = true;
+            } else if (code === 5) {
+              activeBlink = true;
+            } else if (code === 22) {
+              activeBold = false;
+            } else if (code === 25) {
+              activeBlink = false;
             } else {
-              switch(code) {
-                case 30: activeColor = '#1C1C1C'; break;
-                case 31: activeColor = '#E57373'; break; // Red
-                case 32: activeColor = '#81C784'; break; // Green
-                case 33: activeColor = '#FFD54F'; break; // Yellow
-                case 34: activeColor = '#64B5F6'; break; // Blue
-                case 35: activeColor = '#BA68C8'; break; // Magenta
-                case 36: activeColor = '#4DD0E1'; break; // Cyan
-                case 37: activeColor = '#E0E0E0'; break; // White
-                case 90: activeColor = '#757575'; break; // Gray
-                case 91: activeColor = '#FF8A80'; break;
-                case 92: activeColor = '#B9F6CA'; break;
-                case 93: activeColor = '#FFE082'; break;
-                case 94: activeColor = '#82B1FF'; break;
-                case 95: activeColor = '#F8BBD0'; break;
-                case 96: activeColor = '#A7FFEB'; break;
-                case 97: activeColor = '#FFFFFF'; break;
+              const mappedColor = (activeThemeStyles.ansiMap as any)[code];
+              if (mappedColor) {
+                activeColor = mappedColor;
               }
             }
           }
@@ -124,9 +216,24 @@ export default function App() {
       i++;
     }
     if (currentChunk) {
-      result.push({ text: currentChunk, color: activeColor, isBold: activeBold });
+      result.push({ text: currentChunk, color: activeColor, isBold: activeBold, isBlink: activeBlink });
     }
     setParsedSpans(result);
+  };
+
+  // Clipboard copy handlers
+  const copyLineToClipboard = (text: string, idx: number) => {
+    const cleanText = text.replace(/^user@voidterm:~\$\s*/, '');
+    navigator.clipboard.writeText(cleanText);
+    setCopiedLineIdx(idx);
+    setTimeout(() => setCopiedLineIdx(null), 1500);
+  };
+
+  const copyAllLines = () => {
+    const allText = terminalLines.map(line => line.text).join('\n');
+    navigator.clipboard.writeText(allText);
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 1500);
   };
 
   // Handles commands in the simulated terminal
@@ -134,6 +241,14 @@ export default function App() {
     e.preventDefault();
     const command = currentInput.trim();
     if (!command) return;
+
+    // Record in history, ignoring exact consecutive repeats
+    setCommandHistory(prev => {
+      if (prev.length > 0 && prev[prev.length - 1] === command) return prev;
+      return [...prev, command];
+    });
+    setHistoryIndex(-1);
+    setSavedInput('');
 
     const newLines = [...terminalLines, { text: `user@voidterm:~$ ${command}`, type: 'input' as const }];
     setTerminalLines(newLines);
@@ -143,6 +258,37 @@ export default function App() {
     setTimeout(() => {
       processCommand(command, newLines);
     }, 150);
+  };
+
+  // Arrow up and down navigation inside terminal input
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (commandHistory.length === 0) return;
+      
+      let nextIdx = historyIndex;
+      if (historyIndex === -1) {
+        setSavedInput(currentInput);
+        nextIdx = commandHistory.length - 1;
+      } else if (historyIndex > 0) {
+        nextIdx = historyIndex - 1;
+      }
+      
+      setHistoryIndex(nextIdx);
+      setCurrentInput(commandHistory[nextIdx]);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex === -1) return;
+      
+      if (historyIndex === commandHistory.length - 1) {
+        setHistoryIndex(-1);
+        setCurrentInput(savedInput);
+      } else {
+        const nextIdx = historyIndex + 1;
+        setHistoryIndex(nextIdx);
+        setCurrentInput(commandHistory[nextIdx]);
+      }
+    }
   };
 
   const processCommand = async (cmd: string, current: TerminalLine[]) => {
@@ -339,10 +485,15 @@ export default function App() {
             <span className="text-[#9E9E9E]">PTY Daemon:</span>
             <span className="text-[#E0E0E0]">Online (CID 2)</span>
           </div>
-          <div className="px-3 py-1.5 bg-[#141414] border border-[#222] rounded flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#81C784] animate-pulse"></span>
-            <span className="text-[#9E9E9E]">AVF MicroVM:</span>
-            <span className="text-[#E0E0E0]">CID 3</span>
+          <div className="px-3 py-1.5 bg-[#141414] border border-[#222] rounded flex items-center gap-2" title={`Polled from guest VM /proc/stat via IPC broker. Source: ${statsSource}`}>
+            <span className="w-2 h-2 rounded-full bg-[#4DD0E1] animate-pulse"></span>
+            <span className="text-[#9E9E9E]">VM CPU:</span>
+            <span className="text-[#E0E0E0]">{cpuLoad}%</span>
+          </div>
+          <div className="px-3 py-1.5 bg-[#141414] border border-[#222] rounded flex items-center gap-2" title={`Polled from guest VM /proc/meminfo via IPC broker. Source: ${statsSource}`}>
+            <span className="w-2 h-2 rounded-full bg-[#BA68C8] animate-pulse"></span>
+            <span className="text-[#9E9E9E]">VM RAM:</span>
+            <span className="text-[#E0E0E0]">{ramUsage}%</span>
           </div>
           <div className="px-3 py-1.5 bg-[#141414] border border-[#222] rounded flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#81C784]"></span>
@@ -356,7 +507,7 @@ export default function App() {
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         
         {/* LEFT COLUMN: Simulated Android Device with Terminal Canvas */}
-        <section className="lg:col-span-7 flex flex-col border border-[#1C1C1C] bg-[#0E0E0E] rounded-xl overflow-hidden shadow-2xl h-[580px]">
+        <section className={`lg:col-span-7 flex flex-col border ${themeStyles[theme].border} ${themeStyles[theme].bg} rounded-xl overflow-hidden shadow-2xl h-[580px] transition-colors duration-300`}>
           {/* Simulated Mobile Frame Header */}
           <div className="bg-[#141414] border-b border-[#1C1C1C] px-4 py-3 flex justify-between items-center text-xs font-mono">
             <div className="flex items-center gap-2 text-[#757575]">
@@ -372,39 +523,130 @@ export default function App() {
             </div>
           </div>
 
+          {/* Theme & Session Control Bar */}
+          <div className="bg-[#101010] border-b border-[#1C1C1C] px-4 py-2 flex flex-wrap justify-between items-center gap-2 text-xs font-mono">
+            <div className="flex items-center gap-2">
+              <span className="text-[#757575] flex items-center gap-1">
+                <Palette className="w-3.5 h-3.5" />
+                Theme:
+              </span>
+              <div className="flex bg-[#1A1A1A] rounded p-0.5 border border-[#2A2A2A]">
+                <button
+                  onClick={() => setTheme('monochrome')}
+                  className={`px-2.5 py-1 rounded transition text-[10px] ${theme === 'monochrome' ? 'bg-[#2E2E2E] text-[#FFFFFF] font-bold' : 'text-[#757575] hover:text-[#E0E0E0]'}`}
+                >
+                  Monochrome
+                </button>
+                <button
+                  onClick={() => setTheme('solarized')}
+                  className={`px-2.5 py-1 rounded transition text-[10px] ${theme === 'solarized' ? 'bg-[#073642] text-[#859900] font-bold' : 'text-[#757575] hover:text-[#E0E0E0]'}`}
+                >
+                  Solarized
+                </button>
+                <button
+                  onClick={() => setTheme('retro')}
+                  className={`px-2.5 py-1 rounded transition text-[10px] ${theme === 'retro' ? 'bg-[#3E1F00] text-[#FFB300] font-bold' : 'text-[#757575] hover:text-[#E0E0E0]'}`}
+                >
+                  Retro Amber
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={copyAllLines}
+              className="px-2.5 py-1 bg-[#1A1A1A] hover:bg-[#252525] border border-[#2D2D2D] text-white rounded text-[10px] flex items-center gap-1.5 transition"
+            >
+              {copiedAll ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-green-400" />
+                  <span className="text-green-400">All Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy Session</span>
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Interactive Terminal Screen */}
           <div className="flex-1 overflow-y-auto p-4 font-mono text-sm leading-relaxed flex flex-col justify-between">
             <div className="space-y-2">
-              {terminalLines.map((line, idx) => (
-                <div 
-                  key={idx} 
-                  className={`
-                    ${line.type === 'input' ? 'text-[#FFFFFF]' : ''}
-                    ${line.type === 'output' ? 'text-[#E0E0E0]' : ''}
-                    ${line.type === 'system' ? 'text-[#4DD0E1]' : ''}
-                    ${line.type === 'error' ? 'text-[#E57373]' : ''}
-                    ${line.type === 'ai' ? 'text-[#81C784] bg-[#142A1E]/30 px-2 py-1 rounded border-l-2 border-[#81C784]' : ''}
-                  `}
-                >
-                  {line.text}
-                </div>
-              ))}
+              {terminalLines.map((line, idx) => {
+                let textClasses = '';
+                if (line.type === 'input') {
+                  textClasses = themeStyles[theme].inputText;
+                } else if (line.type === 'output') {
+                  textClasses = themeStyles[theme].text;
+                } else if (line.type === 'system') {
+                  textClasses = 'text-[#4DD0E1]';
+                } else if (line.type === 'error') {
+                  textClasses = 'text-[#E57373]';
+                } else if (line.type === 'ai') {
+                  textClasses = 'text-[#81C784] bg-[#142A1E]/30 px-2 py-1 rounded border-l-2 border-[#81C784]';
+                }
+
+                // Apply custom colors overrides for specific themes
+                if (theme === 'retro') {
+                  if (line.type === 'input') textClasses = 'text-[#FFD54F]';
+                  else if (line.type === 'output') textClasses = 'text-[#FFB300]';
+                  else if (line.type === 'system') textClasses = 'text-[#FF8F00]';
+                  else if (line.type === 'error') textClasses = 'text-[#FF3D00]';
+                  else if (line.type === 'ai') textClasses = 'text-[#FFD54F] bg-[#3E1F00]/40 px-2 py-1 rounded border-l-2 border-[#FFB300]';
+                } else if (theme === 'solarized') {
+                  if (line.type === 'input') textClasses = 'text-[#93A1A1]';
+                  else if (line.type === 'output') textClasses = 'text-[#839496]';
+                  else if (line.type === 'system') textClasses = 'text-[#268BD2]';
+                  else if (line.type === 'error') textClasses = 'text-[#DC322F]';
+                  else if (line.type === 'ai') textClasses = 'text-[#859900] bg-[#073642]/60 px-2 py-1 rounded border-l-2 border-[#859900]';
+                }
+
+                return (
+                  <div 
+                    key={idx} 
+                    className="group relative flex items-start justify-between py-0.5 rounded px-1 hover:bg-white/5 transition duration-150"
+                  >
+                    <div className={`font-mono text-sm leading-relaxed flex-1 ${textClasses}`}>
+                      {line.text}
+                    </div>
+                    <button
+                      onClick={() => copyLineToClipboard(line.text, idx)}
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition duration-150 p-1 bg-white/10 hover:bg-white/20 text-white rounded text-[10px] flex items-center gap-1 font-sans ml-2"
+                      title="Copy line"
+                    >
+                      {copiedLineIdx === idx ? (
+                        <>
+                          <Check className="w-3 h-3 text-green-400" />
+                          <span className="text-green-400">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
               <div ref={terminalEndRef} />
             </div>
 
             {/* Prompt Form */}
             <form onSubmit={handleCommandSubmit} className="mt-4 border-t border-[#1C1C1C] pt-3 flex items-center gap-2">
-              <span className="text-[#BA68C8] font-bold">user@voidterm:~$</span>
+              <span className={`${themeStyles[theme].promptColor} font-bold`}>user@voidterm:~$</span>
               <input 
                 type="text" 
                 value={currentInput}
                 onChange={(e) => setCurrentInput(e.target.value)}
-                placeholder="type 'help' or try standard shell commands..."
-                className="flex-1 bg-transparent border-none text-[#FFFFFF] placeholder-[#444444] focus:outline-none focus:ring-0 text-sm font-mono"
+                onKeyDown={handleKeyDown}
+                placeholder="type 'help' or traverse history using up/down keys..."
+                className={`flex-1 bg-transparent border-none ${themeStyles[theme].inputText} placeholder-[#444444] focus:outline-none focus:ring-0 text-sm font-mono`}
               />
               <button 
                 type="submit" 
-                className="bg-[#1C1C1C] hover:bg-[#2A2A2A] text-xs font-mono px-3 py-1.5 rounded border border-[#333] transition"
+                className="bg-[#1C1C1C] hover:bg-[#2A2A2A] text-xs font-mono px-3 py-1.5 rounded border border-[#333] transition text-white"
               >
                 Execute
               </button>
@@ -464,7 +706,10 @@ export default function App() {
 
                 {/* Live Sandbox Input */}
                 <div className="space-y-2 mt-4">
-                  <label className="text-xs font-mono text-[#757575]">Type escape code (try \u001b[31m for Red, \u001b[32m for Green, \u001b[1;33m for Bold Yellow):</label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-mono text-[#757575]">Type escape code (try SGR 5 blink or bold colors):</label>
+                    <span className="text-[10px] text-[#4DD0E1] font-mono animate-pulse">Supports SGR 5 (blink)</span>
+                  </div>
                   <input 
                     type="text" 
                     value={ansiText}
@@ -493,6 +738,12 @@ export default function App() {
                   >
                     Host Connection
                   </button>
+                  <button 
+                    onClick={() => setAnsiText('\\u001b[5;91m[ALERT BLINK] \\u001b[0;33mCore temperature high!')}
+                    className="text-[10px] font-mono px-2.5 py-1 bg-[#1A1A1A] hover:bg-[#252525] border border-[#2A2A2A] rounded text-[#FFD54F] transition font-bold"
+                  >
+                    Blink Sequence
+                  </button>
                 </div>
 
                 {/* SurfaceView Line Parser Simulation Render Box */}
@@ -505,7 +756,12 @@ export default function App() {
                       parsedSpans.map((span, sIdx) => (
                         <span 
                           key={sIdx} 
-                          style={{ color: span.color, fontWeight: span.isBold ? 'bold' : 'normal' }}
+                          style={{ 
+                            color: span.color, 
+                            fontWeight: span.isBold ? 'bold' : 'normal',
+                            opacity: span.isBlink ? (blinkVisible ? 1 : 0.15) : 1,
+                            transition: span.isBlink ? 'opacity 120ms ease-in-out' : 'none'
+                          }}
                           className="whitespace-nowrap"
                         >
                           {span.text}

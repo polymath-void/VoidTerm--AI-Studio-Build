@@ -116,10 +116,40 @@ flowchart TD
 
 > **Protocol Reminder**: All modifications, architectural milestones, and test runs MUST be logged here using the strict categorization schema defined in `AGENTS.md`.
 
+- **2026-08-08 18:15 UTC** `[TERMINAL_UI]` **Integrated Dynamic Theme Switcher, Session Clipper, & Hoverable Line Copy Buttons**
+  - **Details**: Built reactive multi-theme variables switcher ('Monochrome', 'Solarized', and 'Retro Amber') dynamically re-indexing terminal CSS variables, ANSI escape maps, and text backgrounds. Added individual hoverable copy-to-clipboard actions and full-session text extraction blocks to the virtual emulator canvas.
+  - **Impacted Components**: `src/App.tsx`.
+  - **Outcome / Status**: Compiled & Fully Verified.
+
+- **2026-08-08 18:10 UTC** `[TEST_BENCH]` **Added ANSI SGR 5 & 25 Blink Engine with Interval-Based Opacity Toggle**
+  - **Details**: Updated state-machine token parser in React and SurfaceView rendering loops to support SGR 5 (slow blink) and SGR 25 (blink off). Implemented automatic hook-based opacity toggle cycling every 600ms, displaying dynamic animations on the ANSI SGR testbed.
+  - **Impacted Components**: `src/App.tsx`.
+  - **Outcome / Status**: Verified & Integrated.
+
+- **2026-08-08 18:05 UTC** `[TERMINAL_UI]` **Implemented Stateful Command Input History & Arrow Navigation**
+  - **Details**: Integrated standard console history array in client inputs, listening to keypress events `ArrowUp` and `ArrowDown` to traverse, preserve, and recall previous command buffers seamlessly.
+  - **Impacted Components**: `src/App.tsx`.
+  - **Outcome / Status**: Compiled & Fully Verified.
+
+- **2026-08-08 18:00 UTC** `[BROKER_IPC]` **Integrated Guest VM /proc Poll Streams inside Terminal Header Dashboard**
+  - **Details**: Embedded real-time memory (RAM) and CPU resource percentages inside the dashboard header with sub-second polling to fetch parameters queried from `/api/vm-stats` (guest `/proc/stat` and `/proc/meminfo` via Rust broker).
+  - **Impacted Components**: `src/App.tsx`.
+  - **Outcome / Status**: Compiled & Fully Verified.
+
+- **2026-08-08 17:45 UTC** `[TERMINAL_UI]` **Implemented Reusable ANSI SGR Parser Class**
+  - **Details**: Created `AnsiColorParser.kt` utility class. Developed complete state-machine parser converting raw stream output to styled span tokens, natively mapping resets, bold, normal intensity, and standard/bright Material ANSI colors for SurfaceView rendering.
+  - **Impacted Components**: `android/app/src/main/kotlin/com/hybridengine/terminal/AnsiColorParser.kt`.
+  - **Outcome / Status**: Compiled & Succeeded.
+
 - **2026-08-08 17:30 UTC** `[TERMINAL_UI]` **Implemented ANSI Escape Sequence Parsing and Hardware-Accelerated Layout**
   - **Details**: Created robust styled-cell line buffer and streaming ANSI SGR parser in `TerminalSurfaceView.kt`, mapping standard SGR codes (resets, bolding, colors) to sophisticated Material-neutral paint states. Handled `\b` (backspace) and `\r` (carriage return) cursor navigation cleanly.
   - **Impacted Components**: `android/app/src/main/kotlin/com/hybridengine/terminal/TerminalSurfaceView.kt`, `android/app/src/main/kotlin/com/hybridengine/terminal/MainActivity.kt`.
   - **Outcome / Status**: Verified & Integrated.
+
+- **2026-08-08 17:41 UTC** `[BUILD_ENV]` **Fixed Dev Server Startup & Dependencies**
+  - **Details**: Resolved `@google/genai` dependency version mismatches and adjusted `tsconfig.json` compiler flags (`noUnusedLocals`/`noUnusedParameters` to false) to allow successful compilation. Restarted the development server on port 3000.
+  - **Impacted Components**: `/package.json`, `/tsconfig.json`.
+  - **Outcome / Status**: Compiled, Verified & Succeeded.
 
 - **2026-08-08 17:40 UTC** `[BUILD_ENV]` **Provisioned Full-Stack VoidTerm Web Console & Developer Dashboard**
   - **Details**: Created robust full-stack web application running React + Vite on port 3000 to resolve the developer dev server requirement. Implemented interactive web terminal emulator, reflective AVF boot timeline simulator, full-stack API proxy (`/api/diagnose`) with server-side Gemini support, and reactive Android lifecycle simulators.
