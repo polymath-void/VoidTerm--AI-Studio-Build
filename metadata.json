@@ -1,0 +1,8 @@
+{
+  "name": "VoidTerm Shell Terminal",
+  "description": "High-performance hybrid Android terminal shell bypassing PRoot with native host execution, WASM engine, and AVF hardware-accelerated microVMs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

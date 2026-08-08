@@ -1,0 +1,17 @@
+# Rust Build Artifacts
+/hybrid-term-broker/target/
+target/
+**/*.rs.bk
+
+# Android Build Artifacts
+/android/app/build/
+/app/build/
+/build/
+.gradle/
+.idea/
+local.properties
+*.iml
+*.ap_
+
+# NDK / JNI specific
+.cxx/

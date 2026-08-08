@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="100%" height="100%">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080c14" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#4facfe" />
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+
+    <!-- Filters -->
+    <filter id="glowCyan" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <filter id="boxShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+
+    <!-- Markers -->
+    <marker id="arrowCyan" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M1,1 L7,4 L1,7 Z" fill="#00f2fe" />
+    </marker>
+    <marker id="arrowPurple" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M1,1 L7,4 L1,7 Z" fill="#8b5cf6" />
+    </marker>
+    <marker id="arrowOrange" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M1,1 L7,4 L1,7 Z" fill="#f97316" />
+    </marker>
+  </defs>
+
+  <style>
+    .title-text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 800; fill: #ffffff; letter-spacing: 0.5px; }
+    .subtitle-text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; fill: #94a3b8; }
+    .box-title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.3px; }
+    .node-text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; fill: #f8fafc; font-weight: 600; }
+    .node-sub { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; fill: #94a3b8; }
+    .bus-text { font-family: ui-monospace, monospace; font-size: 11px; fill: #38bdf8; font-weight: 600; }
+    .grid-line { stroke: #1e293b; stroke-width: 0.6; stroke-dasharray: 4 4; opacity: 0.7; }
+  </style>
+
+  <!-- Background Canvas -->
+  <rect width="1000" height="620" rx="16" fill="url(#bgGrad)" stroke="#334155" stroke-width="1.5" />
+
+  <!-- Background Grid Pattern -->
+  <g>
+    <line x1="100" y1="0" x2="100" y2="620" class="grid-line" />
+    <line x1="300" y1="0" x2="300" y2="620" class="grid-line" />
+    <line x1="500" y1="0" x2="500" y2="620" class="grid-line" />
+    <line x1="700" y1="0" x2="700" y2="620" class="grid-line" />
+    <line x1="900" y1="0" x2="900" y2="620" class="grid-line" />
+    <line x1="0" y1="120" x2="1000" y2="120" class="grid-line" />
+    <line x1="0" y1="280" x2="1000" y2="280" class="grid-line" />
+    <line x1="0" y1="440" x2="1000" y2="440" class="grid-line" />
+  </g>
+
+  <!-- Header Section -->
+  <g transform="translate(40, 40)">
+    <circle cx="16" cy="16" r="14" fill="#00f2fe" opacity="0.15" />
+    <circle cx="16" cy="16" r="6" fill="#00f2fe" />
+    <text x="42" y="22" class="title-text" font-size="22">VoidTerm Architecture Topology</text>
+    <text x="42" y="40" class="subtitle-text">Dual-Tier Execution: Android Bionic WASM Host + AVF Hardware-Isolated Linux MicroVM</text>
+  </g>
+
+  <!-- 1. UI / JNI Layer Container -->
+  <g transform="translate(40, 110)" filter="url(#boxShadow)">
+    <rect width="260" height="460" rx="12" fill="#0b1329" stroke="#1e293b" stroke-width="1.5" />
+    <rect width="260" height="38" rx="12" fill="#1e293b" opacity="0.5" />
+    <text x="16" y="24" class="box-title" fill="#38bdf8">1. Android Terminal UI</text>
+
+    <!-- Kotlin SurfaceView -->
+    <g transform="translate(16, 56)">
+      <rect width="228" height="74" rx="8" fill="#111c38" stroke="#3b82f6" stroke-width="1" />
+      <text x="14" y="28" class="node-text">TerminalSurfaceView</text>
+      <text x="14" y="48" class="node-sub">HardwareCanvas 60fps Line Draw</text>
+      <text x="14" y="64" class="node-sub">500-Line Capped Scroll Buffer</text>
+    </g>
+
+    <!-- MainActivity & Input -->
+    <g transform="translate(16, 148)">
+      <rect width="228" height="64" rx="8" fill="#111c38" stroke="#3b82f6" stroke-width="1" />
+      <text x="14" y="26" class="node-text">MainActivity.kt</text>
+      <text x="14" y="46" class="node-sub">IME Action / Soft Input Binding</text>
+      <text x="14" y="58" class="node-sub">Storage &amp; Net Permissions</text>
+    </g>
+
+    <!-- JNI Bridge -->
+    <g transform="translate(16, 230)">
+      <rect width="228" height="84" rx="8" fill="#111c38" stroke="#00f2fe" stroke-width="1.2" />
+      <text x="14" y="26" class="node-text">Broker.kt &amp; JNI Layer</text>
+      <text x="14" y="46" class="node-sub">System.loadLibrary("broker")</text>
+      <text x="14" y="62" class="node-sub">Java_Broker_sendCommand</text>
+      <text x="14" y="76" class="node-sub">onTerminalOutput Callback</text>
+    </g>
+
+    <!-- libvterm C++ -->
+    <g transform="translate(16, 332)">
+      <rect width="228" height="64" rx="8" fill="#111c38" stroke="#38bdf8" stroke-width="1" />
+      <text x="14" y="28" class="node-text">libvterm Engine (C++)</text>
+      <text x="14" y="48" class="node-sub">VT100 / ANSI Escape Parser</text>
+    </g>
+  </g>
+
+  <!-- 2. Host Daemon (IPC Broker) Container -->
+  <g transform="translate(340, 110)" filter="url(#boxShadow)">
+    <rect width="320" height="460" rx="12" fill="#0c172e" stroke="#1e3a5f" stroke-width="1.5" />
+    <rect width="320" height="38" rx="12" fill="#1e3a5f" opacity="0.5" />
+    <text x="16" y="24" class="box-title" fill="#818cf8">2. Host IPC Broker Daemon</text>
+
+    <!-- Tokio Multiplexer -->
+    <g transform="translate(16, 56)">
+      <rect width="288" height="96" rx="8" fill="#152445" stroke="#6366f1" stroke-width="1.2" />
+      <text x="14" y="28" class="node-text">tokio::select! Multiplexer</text>
+      <text x="14" y="50" class="node-sub">Non-blocking async channel loops</text>
+      <text x="14" y="68" class="node-sub">mpsc::channel(1024) backpressure</text>
+      <text x="14" y="86" class="node-sub">JVM GlobalRef thread attach</text>
+    </g>
+
+    <!-- Router & Classifier -->
+    <g transform="translate(16, 168)">
+      <rect width="288" height="74" rx="8" fill="#152445" stroke="#8b5cf6" stroke-width="1" />
+      <text x="14" y="26" class="node-text">Command Classifier</text>
+      <text x="14" y="46" class="node-sub">AST / Regex Intent Router</text>
+      <text x="14" y="64" class="node-sub">IpcMessage::{ExecuteWasm, ExecuteVm}</text>
+    </g>
+
+    <!-- WasmEdge Runtime Host -->
+    <g transform="translate(16, 258)">
+      <rect width="288" height="84" rx="8" fill="#152445" stroke="#10b981" stroke-width="1.2" />
+      <text x="14" y="26" class="node-text">WasmEdge Host Embedding</text>
+      <text x="14" y="46" class="node-sub">Direct Android Bionic NDK execution</text>
+      <text x="14" y="62" class="node-sub">WASI CLI args &amp; direct I/O pipe</text>
+      <text x="14" y="76" class="node-sub">Zero-hypervisor execution latency</text>
+    </g>
+
+    <!-- VmBridge Handler -->
+    <g transform="translate(16, 358)">
+      <rect width="288" height="74" rx="8" fill="#152445" stroke="#f97316" stroke-width="1.2" />
+      <text x="14" y="26" class="node-text">VmBridge (AF_VSOCK Client)</text>
+      <text x="14" y="46" class="node-sub">Host CID 2 -&gt; Guest CID : 8000</text>
+      <text x="14" y="64" class="node-sub">Streaming async chunk reader/writer</text>
+    </g>
+  </g>
+
+  <!-- 3. Dual Execution Targets Container -->
+  <!-- Top Right: WASM Host Plugins -->
+  <g transform="translate(700, 110)" filter="url(#boxShadow)">
+    <rect width="260" height="200" rx="12" fill="#061c1e" stroke="#065f46" stroke-width="1.5" />
+    <rect width="260" height="38" rx="12" fill="#065f46" opacity="0.5" />
+    <text x="16" y="24" class="box-title" fill="#34d399">3A. WASM Host Plugins</text>
+
+    <g transform="translate(16, 52)">
+      <rect width="228" height="132" rx="8" fill="#0d2e28" stroke="#10b981" stroke-width="1" />
+      <text x="14" y="26" class="node-text">Native Android Host APIs</text>
+      <text x="14" y="48" class="node-sub">• Sensors &amp; Battery Telemetry</text>
+      <text x="14" y="68" class="node-sub">• Clipboard &amp; System Info</text>
+      <text x="14" y="88" class="node-sub">• Fast Termux:API Replacement</text>
+      <text x="14" y="108" class="node-sub">• Zero-copy memory buffer FFI</text>
+    </g>
+  </g>
+
+  <!-- Bottom Right: AVF MicroVM -->
+  <g transform="translate(700, 330)" filter="url(#boxShadow)">
+    <rect width="260" height="240" rx="12" fill="#1f130b" stroke="#7c2d12" stroke-width="1.5" />
+    <rect width="260" height="38" rx="12" fill="#7c2d12" opacity="0.5" />
+    <text x="16" y="24" class="box-title" fill="#fb923c">3B. AVF MicroVM (Linux)</text>
+
+    <g transform="translate(16, 52)">
+      <rect width="228" height="74" rx="8" fill="#301b10" stroke="#f97316" stroke-width="1" />
+      <text x="14" y="26" class="node-text">guest_daemon (Rust)</text>
+      <text x="14" y="46" class="node-sub">VsockListener (VMADDR_CID_ANY:8000)</text>
+      <text x="14" y="62" class="node-sub">tokio::process PTY spawner</text>
+    </g>
+
+    <g transform="translate(16, 136)">
+      <rect width="228" height="88" rx="8" fill="#301b10" stroke="#fb923c" stroke-width="1" />
+      <text x="14" y="24" class="node-text">Standard glibc Linux</text>
+      <text x="14" y="44" class="node-sub">• Python, Django, Node.js</text>
+      <text x="14" y="60" class="node-sub">• GCC, Clang, Rustc toolchains</text>
+      <text x="14" y="76" class="node-sub">• Isolated crosvm hypervisor</text>
+    </g>
+  </g>
+
+  <!-- Connecting Lines & Arrows -->
+  <!-- UI <-> Broker -->
+  <path d="M 300,360 L 340,360" stroke="#00f2fe" stroke-width="2.5" marker-end="url(#arrowCyan)" filter="url(#glowCyan)" />
+  <path d="M 340,380 L 300,380" stroke="#38bdf8" stroke-width="2" stroke-dasharray="3 3" />
+
+  <!-- Broker -> WASM Plugins -->
+  <path d="M 660,300 L 700,210" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrowPurple)" />
+
+  <!-- Broker <-> AVF MicroVM (virtio-vsock bus) -->
+  <path d="M 660,420 L 700,420" stroke="#f97316" stroke-width="3" marker-end="url(#arrowOrange)" />
+  <text x="640" y="450" class="bus-text" text-anchor="middle">virtio-vsock</text>
+</svg>
